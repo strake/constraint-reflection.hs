@@ -17,6 +17,7 @@ unReflected' _ = unReflected
 
 class Functor (Iso (->)) (->) (Methods c) => Reifiable c where
     data Methods c a
+    methods :: c a => Methods c a
     reifiable :: Reifies s (Methods c a) => Dict (c (Reflected c s a))
     default reifiable :: c (Reflected c s a) => Dict (c (Reflected c s a))
     reifiable = Dict
@@ -27,14 +28,25 @@ reifiable' _ = reifiable
 by :: ∀ c f a . (Reifiable c, Functor (Iso (->)) (->) f) => Methods c a -> (∀ a . c a => f a) -> f a
 by methods a = reify methods (\ proxy -> Iso (unReflected' proxy) (Reflected @c) <$> withDict (reifiable' proxy) a)
 
-instance Reifiable Eq  where newtype Methods Eq  a = EqMethods  { eqMethod      :: a -> a -> Bool }
-instance Reifiable Ord where newtype Methods Ord a = OrdMethods { compareMethod :: a -> a -> Ordering }
+instance Reifiable Eq  where
+    newtype Methods Eq  a = EqMethods  { eqMethod      :: a -> a -> Bool }
+    methods = EqMethods (==)
+instance Reifiable Ord where
+    newtype Methods Ord a = OrdMethods { compareMethod :: a -> a -> Ordering }
+    methods = OrdMethods compare
 
-instance Reifiable Semigroup where newtype Methods Semigroup a = SemigroupMethods { combineMethod :: a -> a -> a }
-instance Reifiable Monoid    where data    Methods Monoid    a = MonoidMethods    { semigroupMethods :: Methods Semigroup a
-                                                                                  , memptyMethod :: a }
+instance Reifiable Semigroup where
+    newtype Methods Semigroup a = SemigroupMethods { combineMethod :: a -> a -> a }
+    methods = SemigroupMethods (<>)
+instance Reifiable Monoid    where
+    data    Methods Monoid    a = MonoidMethods
+      { semigroupMethods :: Methods Semigroup a
+      , memptyMethod :: a }
+    methods = MonoidMethods methods mempty
 
-instance Reifiable Show where newtype Methods Show a = ShowMethods { showsPrecMethod :: Int -> a -> ShowS }
+instance Reifiable Show where
+    newtype Methods Show a = ShowMethods { showsPrecMethod :: Int -> a -> ShowS }
+    methods = ShowMethods showsPrec
 
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Ord) where map (Iso _ f) (OrdMethods cmp) = OrdMethods (cmp `on` f)
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Eq)  where map (Iso _ f) (EqMethods  eq)  = EqMethods  (eq  `on` f)

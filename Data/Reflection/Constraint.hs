@@ -34,11 +34,15 @@ instance Reifiable Semigroup where newtype Methods Semigroup a = SemigroupMethod
 instance Reifiable Monoid    where data    Methods Monoid    a = MonoidMethods    { semigroupMethods :: Methods Semigroup a
                                                                                   , memptyMethod :: a }
 
+instance Reifiable Show where newtype Methods Show a = ShowMethods { showsPrecMethod :: Int -> a -> ShowS }
+
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Ord) where map (Iso _ f) (OrdMethods cmp) = OrdMethods (cmp `on` f)
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Eq)  where map (Iso _ f) (EqMethods  eq)  = EqMethods  (eq  `on` f)
 
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Semigroup) where map (Iso f f') (SemigroupMethods (<>))  = SemigroupMethods (\ a b -> f (f' a <> f' b))
 instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Monoid)    where map φ@(Iso f _) (MonoidMethods sg mempty)  = MonoidMethods (φ <$> sg) (f mempty)
+
+instance {-# OVERLAPPING #-} Functor (Iso (->)) (->) (Methods Show) where map (Iso _ g) (ShowMethods sp) = ShowMethods (\ p -> sp p . g)
 
 instance Reifies s (Methods Eq a) => Eq (Reflected Eq s a) where
     (==) = (eqMethod . reflect) (Proxy @s) `on` unReflected
@@ -57,3 +61,6 @@ instance Reifies s (Methods Monoid a) => Semigroup (Reflected Monoid s a) where
 
 instance Reifies s (Methods Monoid a) => Monoid (Reflected Monoid s a) where
     mempty = Reflected $ (memptyMethod . reflect) (Proxy @s)
+
+instance Reifies s (Methods Show a) => Show (Reflected Show s a) where
+    showsPrec prec = showsPrecMethod (reflect (Proxy @s)) prec . unReflected
